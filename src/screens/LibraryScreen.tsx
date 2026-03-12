@@ -1487,7 +1487,7 @@ const LibraryScreen = () => {
     const currentOffset = isLoadMore ? malOffset : 0;
     setMalLoading(true);
     try {
-      const response = await MalApiService.getUserList(undefined, currentOffset);
+      const response = await MalApiService.getUserList(undefined, currentOffset, 100);
       if (isLoadMore) {
           setMalMalList(prev => [...prev, ...response.data]);
       } else {

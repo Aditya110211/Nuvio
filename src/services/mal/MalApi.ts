@@ -39,6 +39,7 @@ export const MalApiService = {
           limit,
           offset,
           sort: 'list_updated_at',
+          nsfw: true // Ensure all content is returned
         },
       });
       return response.data;
@@ -64,17 +65,23 @@ export const MalApiService = {
     malId: number, 
     status: MalListStatus, 
     episode: number,
-    score?: number
+    score?: number,
+    isRewatching?: boolean
   ) => {
     const data: any = {
       status,
       num_watched_episodes: episode,
+      is_rewatching: isRewatching || false
     };
     if (score && score > 0) data.score = score;
 
     return api.put(`/anime/${malId}/my_list_status`, new URLSearchParams(data).toString(), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
+  },
+
+  removeFromList: async (malId: number) => {
+    return api.delete(`/anime/${malId}/my_list_status`);
   },
 
   getAnimeDetails: async (malId: number) => {
@@ -91,7 +98,11 @@ export const MalApiService = {
 
   getUserInfo: async (): Promise<MalUser> => {
       try {
-          const response = await api.get('/users/@me');
+          const response = await api.get('/users/@me', {
+              params: {
+                  fields: 'id,name,picture,gender,birthday,location,joined_at,anime_statistics,time_zone'
+              }
+          });
           return response.data;
       } catch (error) {
           console.error('Failed to get user info', error);

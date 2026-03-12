@@ -39,6 +39,7 @@ const MalSettingsScreen: React.FC = () => {
   const [syncEnabled, setSyncEnabled] = useState(mmkvStorage.getBoolean('mal_enabled') ?? true);
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(mmkvStorage.getBoolean('mal_auto_update') ?? true);
   const [autoAddEnabled, setAutoAddEnabled] = useState(mmkvStorage.getBoolean('mal_auto_add') ?? true);
+  const [autoLibrarySyncEnabled, setAutoLibrarySyncEnabled] = useState(mmkvStorage.getBoolean('mal_auto_sync_to_library') ?? false);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
@@ -139,6 +140,11 @@ const MalSettingsScreen: React.FC = () => {
       mmkvStorage.setBoolean('mal_auto_add', val);
   };
 
+  const toggleAutoLibrarySync = (val: boolean) => {
+      setAutoLibrarySyncEnabled(val);
+      mmkvStorage.setBoolean('mal_auto_sync_to_library', val);
+  };
+
   return (
     <SafeAreaView style={[
       styles.container,
@@ -188,42 +194,117 @@ const MalSettingsScreen: React.FC = () => {
                             <Text style={[styles.profileName, { color: currentTheme.colors.highEmphasis }]}>
                                 {userProfile.name}
                             </Text>
-                            <Text style={[styles.profileUsername, { color: currentTheme.colors.mediumEmphasis }]}>
-                                ID: {userProfile.id}
-                            </Text>
+                            <View style={styles.profileDetailRow}>
+                                <MaterialIcons name="fingerprint" size={14} color={currentTheme.colors.mediumEmphasis} />
+                                <Text style={[styles.profileDetailText, { color: currentTheme.colors.mediumEmphasis }]}>
+                                    ID: {userProfile.id}
+                                </Text>
+                            </View>
+                            {userProfile.location && (
+                                <View style={styles.profileDetailRow}>
+                                    <MaterialIcons name="location-on" size={14} color={currentTheme.colors.mediumEmphasis} />
+                                    <Text style={[styles.profileDetailText, { color: currentTheme.colors.mediumEmphasis }]}>
+                                        {userProfile.location}
+                                    </Text>
+                                </View>
+                            )}
+                            {userProfile.birthday && (
+                                <View style={styles.profileDetailRow}>
+                                    <MaterialIcons name="cake" size={14} color={currentTheme.colors.mediumEmphasis} />
+                                    <Text style={[styles.profileDetailText, { color: currentTheme.colors.mediumEmphasis }]}>
+                                        {userProfile.birthday}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                     </View>
-                    
-                    <TouchableOpacity
-                        style={[styles.button, styles.signOutButton, { backgroundColor: currentTheme.colors.error }]}
-                        onPress={handleSignOut}
-                    >
-                        <Text style={styles.buttonText}>Sign Out</Text>
-                    </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.button, { backgroundColor: currentTheme.colors.primary, marginTop: 12 }]}
-                        onPress={async () => {
-                            setIsLoading(true);
-                            try {
-                                const synced = await MalSync.syncMalToLibrary();
-                                if (synced) {
-                                    openAlert('Sync Complete', 'MAL data has been refreshed.');
-                                } else {
-                                    openAlert('Sync Failed', 'Could not refresh MAL data.');
-                                }
-                            } catch {
-                                openAlert('Sync Failed', 'Could not refresh MAL data.');
-                            } finally {
-                                setIsLoading(false);
-                            }
-                        }}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <MaterialIcons name="sync" size={20} color="white" style={{ marginRight: 8 }} />
-                            <Text style={styles.buttonText}>Sync Now</Text>
+                    {userProfile.anime_statistics && (
+                        <View style={styles.statsContainer}>
+                            <View style={styles.statsRow}>
+                                <View style={styles.statBox}>
+                                    <Text style={[styles.statValue, { color: currentTheme.colors.primary }]}>
+                                        {userProfile.anime_statistics.num_items}
+                                    </Text>
+                                    <Text style={[styles.statLabel, { color: currentTheme.colors.mediumEmphasis }]}>Total</Text>
+                                </View>
+                                <View style={styles.statBox}>
+                                    <Text style={[styles.statValue, { color: currentTheme.colors.primary }]}>
+                                        {userProfile.anime_statistics.num_days_watched.toFixed(1)}
+                                    </Text>
+                                    <Text style={[styles.statLabel, { color: currentTheme.colors.mediumEmphasis }]}>Days</Text>
+                                </View>
+                                <View style={styles.statBox}>
+                                    <Text style={[styles.statValue, { color: currentTheme.colors.primary }]}>
+                                        {userProfile.anime_statistics.mean_score.toFixed(1)}
+                                    </Text>
+                                    <Text style={[styles.statLabel, { color: currentTheme.colors.mediumEmphasis }]}>Mean</Text>
+                                </View>
+                            </View>
+                            
+                            <View style={[styles.statGrid, { borderColor: currentTheme.colors.border }]}>
+                                <View style={styles.statGridItem}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#2DB039' }]} />
+                                    <Text style={[styles.statGridLabel, { color: currentTheme.colors.highEmphasis }]}>Watching</Text>
+                                    <Text style={[styles.statGridValue, { color: currentTheme.colors.highEmphasis }]}>
+                                        {userProfile.anime_statistics.num_items_watching}
+                                    </Text>
+                                </View>
+                                <View style={styles.statGridItem}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#26448F' }]} />
+                                    <Text style={[styles.statGridLabel, { color: currentTheme.colors.highEmphasis }]}>Completed</Text>
+                                    <Text style={[styles.statGridValue, { color: currentTheme.colors.highEmphasis }]}>
+                                        {userProfile.anime_statistics.num_items_completed}
+                                    </Text>
+                                </View>
+                                <View style={styles.statGridItem}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#F9D457' }]} />
+                                    <Text style={[styles.statGridLabel, { color: currentTheme.colors.highEmphasis }]}>On Hold</Text>
+                                    <Text style={[styles.statGridValue, { color: currentTheme.colors.highEmphasis }]}>
+                                        {userProfile.anime_statistics.num_items_on_hold}
+                                    </Text>
+                                </View>
+                                <View style={styles.statGridItem}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#A12F31' }]} />
+                                    <Text style={[styles.statGridLabel, { color: currentTheme.colors.highEmphasis }]}>Dropped</Text>
+                                    <Text style={[styles.statGridValue, { color: currentTheme.colors.highEmphasis }]}>
+                                        {userProfile.anime_statistics.num_items_dropped}
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
-                    </TouchableOpacity>
+                    )}
+                    
+                    <View style={styles.actionButtonsRow}>
+                        <TouchableOpacity
+                            style={[styles.smallButton, { backgroundColor: currentTheme.colors.primary, flex: 1, marginRight: 8 }]}
+                            onPress={async () => {
+                                setIsLoading(true);
+                                try {
+                                    const synced = await MalSync.syncMalToLibrary();
+                                    if (synced) {
+                                        openAlert('Sync Complete', 'MAL data has been refreshed.');
+                                    } else {
+                                        openAlert('Sync Failed', 'Could not refresh MAL data.');
+                                    }
+                                } catch {
+                                    openAlert('Sync Failed', 'Could not refresh MAL data.');
+                                } finally {
+                                    setIsLoading(false);
+                                }
+                            }}
+                        >
+                            <MaterialIcons name="sync" size={18} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.buttonText}>Sync</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.smallButton, { backgroundColor: currentTheme.colors.error, width: 100 }]}
+                            onPress={handleSignOut}
+                        >
+                            <Text style={styles.buttonText}>Sign Out</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             ) : (
                 <View style={styles.signInContainer}>
@@ -311,6 +392,25 @@ const MalSettingsScreen: React.FC = () => {
                             />
                         </View>
                     </View>
+
+                    <View style={styles.settingItem}>
+                        <View style={styles.settingContent}>
+                            <View style={styles.settingTextContainer}>
+                                <Text style={[styles.settingLabel, { color: currentTheme.colors.highEmphasis }]}>
+                                    Auto-Sync to Library
+                                </Text>
+                                <Text style={[styles.settingDescription, { color: currentTheme.colors.mediumEmphasis }]}>
+                                    Automatically add items from your MAL 'Watching' list to your Nuvio Library.
+                                </Text>
+                            </View>
+                            <Switch
+                                value={autoLibrarySyncEnabled}
+                                onValueChange={toggleAutoLibrarySync}
+                                trackColor={{ false: currentTheme.colors.border, true: currentTheme.colors.primary + '80' }}
+                                thumbColor={autoLibrarySyncEnabled ? currentTheme.colors.white : currentTheme.colors.mediumEmphasis}
+                            />
+                        </View>
+                    </View>
                 </View>
             </View>
         )}
@@ -371,7 +471,37 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 24, color: 'white', fontWeight: 'bold' },
   profileInfo: { marginLeft: 16, flex: 1 },
   profileName: { fontSize: 18, fontWeight: '600' },
-  profileUsername: { fontSize: 14 },
+  profileDetailRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  profileDetailText: { fontSize: 12, marginLeft: 4 },
+  statsContainer: { marginTop: 20 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  statBox: { alignItems: 'center', flex: 1 },
+  statValue: { fontSize: 18, fontWeight: 'bold' },
+  statLabel: { fontSize: 12, marginTop: 2 },
+  statGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    borderTopWidth: 1, 
+    paddingTop: 16,
+    gap: 12
+  },
+  statGridItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    width: '45%',
+    marginBottom: 8
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  statGridLabel: { fontSize: 13, flex: 1 },
+  statGridValue: { fontSize: 13, fontWeight: '600' },
+  actionButtonsRow: { flexDirection: 'row', marginTop: 20 },
+  smallButton: {
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
   signOutButton: { marginTop: 20 },
   settingsSection: { padding: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },

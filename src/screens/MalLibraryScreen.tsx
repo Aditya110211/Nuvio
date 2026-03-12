@@ -187,61 +187,68 @@ const MalLibraryScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.colors.darkBackground }]}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={currentTheme.colors.highEmphasis} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: currentTheme.colors.highEmphasis }]}>
-          MyAnimeList
-        </Text>
-        {/* Requirement 6: Manual Sync Button */}
-        <TouchableOpacity onPress={handleRefresh} style={styles.syncButton} disabled={isLoading}>
-          {isLoading ? (
-              <ActivityIndicator size="small" color={currentTheme.colors.primary} />
-          ) : (
-              <MaterialIcons name="sync" size={24} color={currentTheme.colors.primary} />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {!isLoading || isRefreshing ? (
-        <ScrollView 
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={currentTheme.colors.primary} />
-          }
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
-          {renderSection('watching', 'Watching', 'play-circle-outline')}
-          {renderSection('plan_to_watch', 'Plan to Watch', 'bookmark-outline')}
-          {renderSection('completed', 'Completed', 'check-circle-outline')}
-          {renderSection('on_hold', 'On Hold', 'pause-circle-outline')}
-          {renderSection('dropped', 'Dropped', 'highlight-off')}
-        </ScrollView>
-      ) : (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={currentTheme.colors.primary} />
+    <View style={[styles.container, { backgroundColor: currentTheme.colors.darkBackground }]}>
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="transparent" 
+        translucent 
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color={currentTheme.colors.highEmphasis} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: currentTheme.colors.highEmphasis }]}>
+            MyAnimeList
+          </Text>
+          {/* Requirement 6: Manual Sync Button */}
+          <TouchableOpacity onPress={handleRefresh} style={styles.syncButton} disabled={isLoading}>
+            {isLoading ? (
+                <ActivityIndicator size="small" color={currentTheme.colors.primary} />
+            ) : (
+                <MaterialIcons name="sync" size={24} color={currentTheme.colors.primary} />
+            )}
+          </TouchableOpacity>
         </View>
-      )}
 
-      {selectedAnime && (
-        <MalEditModal
-          visible={isEditModalVisible}
-          anime={selectedAnime}
-          onClose={() => {
-            setIsEditModalVisible(false);
-            setSelectedAnime(null);
-          }}
-          onUpdateSuccess={fetchMalList}
-        />
-      )}
-    </SafeAreaView>
+        {!isLoading || isRefreshing ? (
+          <ScrollView 
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={currentTheme.colors.primary} />
+            }
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
+            {renderSection('watching', 'Watching', 'play-circle-outline')}
+            {renderSection('plan_to_watch', 'Plan to Watch', 'bookmark-outline')}
+            {renderSection('completed', 'Completed', 'check-circle-outline')}
+            {renderSection('on_hold', 'On Hold', 'pause-circle-outline')}
+            {renderSection('dropped', 'Dropped', 'highlight-off')}
+          </ScrollView>
+        ) : (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={currentTheme.colors.primary} />
+          </View>
+        )}
+
+        {selectedAnime && (
+          <MalEditModal
+            visible={isEditModalVisible}
+            anime={selectedAnime}
+            onClose={() => {
+              setIsEditModalVisible(false);
+              setSelectedAnime(null);
+            }}
+            onUpdateSuccess={fetchMalList}
+          />
+        )}
+      </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

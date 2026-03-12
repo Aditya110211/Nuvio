@@ -349,10 +349,59 @@ export const MalSync = {
               mmkvStorage.setNumber(getLegacyTitleCacheKey(title, type), item.node.id);
           }
           console.log(`[MalSync] Synced ${allItems.length} items to mapping cache.`);
+          
+          // If auto-sync to library is enabled, also add 'watching' items to Nuvio Library
+          if (mmkvStorage.getBoolean('mal_auto_sync_to_library') ?? false) {
+              await MalSync.syncMalWatchingToLibrary();
+          }
+          
           return true;
       } catch (e) {
           console.error('syncMalToLibrary failed', e);
           return false;
+      }
+  },
+
+  /**
+   * Automatically adds MAL 'watching' items to the Nuvio Library
+   */
+  syncMalWatchingToLibrary: async () => {
+      try {
+          logger.log('[MalSync] Auto-syncing MAL watching items to library...');
+          
+          const response = await MalApiService.getUserList('watching', 0, 50);
+          if (!response.data || response.data.length === 0) return;
+
+          for (const item of response.data) {
+              const malId = item.node.id;
+              const { imdbId } = await MalSync.getIdsFromMalId(malId);
+              
+              if (imdbId) {
+                  const type = item.node.media_type === 'movie' ? 'movie' : 'series';
+                  
+                  // Check if already in library to avoid redundant calls
+                  const currentLibrary = await catalogService.getLibraryItems();
+                  const exists = currentLibrary.some(l => l.id === imdbId);
+                  
+                  if (!exists) {
+                      logger.log(`[MalSync] Auto-adding to library: ${item.node.title} (${imdbId})`);
+                      
+                      await catalogService.addToLibrary({
+                          id: imdbId,
+                          type: type,
+                          name: item.node.title,
+                          poster: item.node.main_picture?.large || item.node.main_picture?.medium || '',
+                          posterShape: 'poster',
+                          year: item.node.start_season?.year,
+                          description: '',
+                          genres: [],
+                          inLibrary: true,
+                      });
+                  }
+              }
+          }
+      } catch (e) {
+          logger.error('[MalSync] syncMalWatchingToLibrary failed:', e);
       }
   },
 

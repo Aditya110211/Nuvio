@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Switch,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -36,13 +38,16 @@ export const MalEditModal: React.FC<MalEditModalProps> = ({
   const [status, setStatus] = useState<MalListStatus>(anime.list_status.status);
   const [episodes, setEpisodes] = useState(anime.list_status.num_episodes_watched.toString());
   const [score, setScore] = useState(anime.list_status.score.toString());
+  const [isRewatching, setIsRewatching] = useState(anime.list_status.is_rewatching || false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setStatus(anime.list_status.status);
       setEpisodes(anime.list_status.num_episodes_watched.toString());
       setScore(anime.list_status.score.toString());
+      setIsRewatching(anime.list_status.is_rewatching || false);
     }
   }, [visible, anime]);
 
@@ -55,7 +60,7 @@ export const MalEditModal: React.FC<MalEditModalProps> = ({
       // Validation: MAL scores must be between 0 and 10
       scoreNum = Math.max(0, Math.min(10, scoreNum));
       
-      await MalApiService.updateStatus(anime.node.id, status, epNum, scoreNum);
+      await MalApiService.updateStatus(anime.node.id, status, epNum, scoreNum, isRewatching);
       
       showSuccess('Updated', `${anime.node.title} status updated on MAL`);
       onUpdateSuccess();
@@ -65,6 +70,33 @@ export const MalEditModal: React.FC<MalEditModalProps> = ({
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleRemove = async () => {
+    Alert.alert(
+      'Remove from List',
+      `Are you sure you want to remove ${anime.node.title} from your MyAnimeList?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: async () => {
+            setIsRemoving(true);
+            try {
+              await MalApiService.removeFromList(anime.node.id);
+              showSuccess('Removed', `${anime.node.title} removed from MAL`);
+              onUpdateSuccess();
+              onClose();
+            } catch (error) {
+              showError('Remove Failed', 'Could not remove from MAL');
+            } finally {
+              setIsRemoving(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const statusOptions: { label: string; value: MalListStatus }[] = [
@@ -160,15 +192,44 @@ export const MalEditModal: React.FC<MalEditModalProps> = ({
                 </View>
               </View>
 
+              <View style={styles.rewatchRow}>
+                <View style={styles.rewatchTextContainer}>
+                  <Text style={[styles.label, { color: currentTheme.colors.highEmphasis, marginTop: 0 }]}>Rewatching</Text>
+                  <Text style={[styles.rewatchDescription, { color: currentTheme.colors.mediumEmphasis }]}>
+                    Mark this if you are watching the series again.
+                  </Text>
+                </View>
+                <Switch
+                  value={isRewatching}
+                  onValueChange={setIsRewatching}
+                  trackColor={{ false: currentTheme.colors.border, true: currentTheme.colors.primary + '80' }}
+                  thumbColor={isRewatching ? currentTheme.colors.primary : '#f4f3f4'}
+                />
+              </View>
+
               <TouchableOpacity
                 style={[styles.updateButton, { backgroundColor: currentTheme.colors.primary }]}
                 onPress={handleUpdate}
-                disabled={isUpdating}
+                disabled={isUpdating || isRemoving}
               >
                 {isUpdating ? (
                   <ActivityIndicator color="white" />
                 ) : (
                   <Text style={styles.updateButtonText}>Update MAL</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.removeButton, { borderColor: currentTheme.colors.error || '#FF5252' }]}
+                onPress={handleRemove}
+                disabled={isUpdating || isRemoving}
+              >
+                {isRemoving ? (
+                  <ActivityIndicator color={currentTheme.colors.error || '#FF5252'} />
+                ) : (
+                  <Text style={[styles.removeButtonText, { color: currentTheme.colors.error || '#FF5252' }]}>
+                    Remove from List
+                  </Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -245,6 +306,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
   },
+  rewatchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    paddingVertical: 8,
+  },
+  rewatchTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  rewatchDescription: {
+    fontSize: 12,
+    marginTop: 2,
+  },
   updateButton: {
     height: 48,
     borderRadius: 24,
@@ -257,5 +333,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '700',
+  },
+  removeButton: {
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  removeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
