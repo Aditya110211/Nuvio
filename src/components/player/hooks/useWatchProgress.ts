@@ -19,7 +19,10 @@ export const useWatchProgress = (
     imdbId?: string,
     season?: number,
     episode?: number,
-    releaseDate?: string
+    releaseDate?: string,
+    malId?: number,
+    dayIndex?: number,
+    tmdbId?: number
 ) => {
     const [resumePosition, setResumePosition] = useState<number | null>(null);
     const [savedDuration, setSavedDuration] = useState<number | null>(null);
@@ -38,6 +41,20 @@ export const useWatchProgress = (
     const seasonRef = useRef(season);
     const episodeRef = useRef(episode);
     const releaseDateRef = useRef(releaseDate);
+    const malIdRef = useRef(malId);
+    const dayIndexRef = useRef(dayIndex);
+    const tmdbIdRef = useRef(tmdbId);
+
+    // Sync refs
+    useEffect(() => {
+        imdbIdRef.current = imdbId;
+        seasonRef.current = season;
+        episodeRef.current = episode;
+        releaseDateRef.current = releaseDate;
+        malIdRef.current = malId;
+        dayIndexRef.current = dayIndex;
+        tmdbIdRef.current = tmdbId;
+    }, [imdbId, season, episode, releaseDate, malId, dayIndex, tmdbId]);
 
     // Reset scrobble flag when content changes
     useEffect(() => {
@@ -154,6 +171,9 @@ export const useWatchProgress = (
                     const currentSeason = seasonRef.current;
                     const currentEpisode = episodeRef.current;
                     const currentReleaseDate = releaseDateRef.current;
+                    const currentMalId = malIdRef.current;
+                    const currentDayIndex = dayIndexRef.current;
+                    const currentTmdbId = tmdbIdRef.current;
 
                     if (type === 'series' && currentImdbId && currentSeason !== undefined && currentEpisode !== undefined) {
                         watchedService.markEpisodeAsWatched(
@@ -162,10 +182,14 @@ export const useWatchProgress = (
                             currentSeason, 
                             currentEpisode, 
                             new Date(), 
-                            currentReleaseDate
+                            currentReleaseDate,
+                            undefined,
+                            currentMalId,
+                            currentDayIndex,
+                            currentTmdbId
                         );
                     } else if (type === 'movie' && currentImdbId) {
-                        watchedService.markMovieAsWatched(currentImdbId);
+                        watchedService.markMovieAsWatched(currentImdbId, new Date(), currentMalId, currentTmdbId);
                     }
                 }
             } catch (error) {

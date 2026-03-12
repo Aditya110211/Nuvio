@@ -222,6 +222,21 @@ const KSPlayerCore: React.FC = () => {
     isMounted
   });
 
+  const currentMalId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+  const currentTmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+
+  // Calculate dayIndex for same-day releases
+  const currentDayIndex = useMemo(() => {
+    if (!releaseDate || !groupedEpisodes) return 0;
+    // Flatten groupedEpisodes to search for same-day releases
+    const allEpisodes = Object.values(groupedEpisodes).flat() as any[];
+    const sameDayEpisodes = allEpisodes
+      .filter(ep => ep.air_date === releaseDate)
+      .sort((a, b) => a.episode_number - b.episode_number);
+    const idx = sameDayEpisodes.findIndex(ep => ep.episode_number === episode);
+    return idx >= 0 ? idx : 0;
+  }, [releaseDate, groupedEpisodes, episode]);
+
   const watchProgress = useWatchProgress(
     id, type, episodeId,
     currentTime,
@@ -233,7 +248,10 @@ const KSPlayerCore: React.FC = () => {
     imdbId,
     season,
     episode,
-    releaseDate
+    releaseDate,
+    currentMalId,
+    currentDayIndex,
+    currentTmdbId
   );
 
   // Gestures

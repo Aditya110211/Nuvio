@@ -34,7 +34,15 @@ interface SeriesContentProps {
   onSeasonChange: (season: number) => void;
   onSelectEpisode: (episode: Episode) => void;
   groupedEpisodes?: { [seasonNumber: number]: Episode[] };
-  metadata?: { poster?: string; id?: string; name?: string };
+  metadata?: { 
+    poster?: string; 
+    id?: string; 
+    name?: string;
+    mal_id?: number;
+    external_ids?: {
+      mal_id?: number;
+    }
+  };
   imdbId?: string; // IMDb ID for Trakt sync
 }
 
@@ -574,15 +582,31 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
 
     // 3. Background Async Operation
     const showImdbId = imdbId || metadata.id;
+    const malId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+    const tmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+    
+    // Calculate dayIndex for same-day releases
+    let dayIndex = 0;
+    if (episode.air_date) {
+      const sameDayEpisodes = episodes
+        .filter(ep => ep.air_date === episode.air_date)
+        .sort((a, b) => a.episode_number - b.episode_number);
+      dayIndex = sameDayEpisodes.findIndex(ep => ep.episode_number === episode.episode_number);
+      if (dayIndex < 0) dayIndex = 0;
+    }
+
     try {
       const result = await watchedService.markEpisodeAsWatched(
-        showImdbId,
-        metadata.id,
+        showImdbId || 'Anime',
+        metadata.id || '',
         episode.season_number,
         episode.episode_number,
         new Date(),
         episode.air_date,
-        metadata?.name
+        metadata?.name,
+        malId,
+        dayIndex,
+        tmdbId
       );
 
       // Reload to ensure consistency (e.g. if optimistic update was slightly off or for other effects)

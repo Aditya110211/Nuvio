@@ -31,9 +31,10 @@ export const ArmSyncService = {
    * 
    * @param imdbId The IMDb ID of the show
    * @param releaseDateStr The air date of the episode (YYYY-MM-DD)
+   * @param dayIndex The 0-based index of this episode among others released on the same day (optional)
    * @returns {Promise<DateSyncResult | null>} The resolved MAL ID and Episode number
    */
-  resolveByDate: async (imdbId: string, releaseDateStr: string): Promise<DateSyncResult | null> => {
+  resolveByDate: async (imdbId: string, releaseDateStr: string, dayIndex?: number): Promise<DateSyncResult | null> => {
     try {
       // Basic validation: ensure date is in YYYY-MM-DD format
       if (!/^\d{4}-\d{2}-\d{2}/.test(releaseDateStr)) {
@@ -59,7 +60,54 @@ export const ArmSyncService = {
 
       logger.log(`[ArmSync] Found candidates: ${malIds.join(', ')}`);
 
-      // 2. Validate Candidates via Jikan Dates
+      // 2. Validate Candidates
+      return await ArmSyncService.resolveFromMalCandidates(malIds, releaseDateStr, dayIndex);
+    } catch (e) {
+      logger.error('[ArmSync] Resolution failed:', e);
+    }
+    return null;
+  },
+
+  /**
+   * Resolves the correct MyAnimeList ID and Episode Number using ARM (for ID mapping)
+   * and Jikan (for Air Date matching) using a TMDB ID.
+   * 
+   * @param tmdbId The TMDB ID of the show
+   * @param releaseDateStr The air date of the episode (YYYY-MM-DD)
+   * @param dayIndex The 0-based index of this episode among others released on the same day
+   * @returns {Promise<DateSyncResult | null>} The resolved MAL ID and Episode number
+   */
+  resolveByTmdb: async (tmdbId: number, releaseDateStr: string, dayIndex?: number): Promise<DateSyncResult | null> => {
+    try {
+      if (!/^\d{4}-\d{2}-\d{2}/.test(releaseDateStr)) return null;
+
+      logger.log(`[ArmSync] Resolving TMDB ${tmdbId} for date ${releaseDateStr}...`);
+
+      // 1. Fetch Candidates from ARM using TMDB ID
+      const armRes = await axios.get<ArmEntry[]>(`${ARM_BASE}/tmdb`, {
+        params: { id: tmdbId }
+      });
+      
+      const malIds = armRes.data
+        .map(entry => entry.myanimelist)
+        .filter((id): id is number => !!id);
+
+      if (malIds.length === 0) return null;
+
+      logger.log(`[ArmSync] Found candidates for TMDB ${tmdbId}: ${malIds.join(', ')}`);
+
+      // 2. Validate Candidates
+      return await ArmSyncService.resolveFromMalCandidates(malIds, releaseDateStr, dayIndex);
+    } catch (e) {
+      logger.error('[ArmSync] TMDB resolution failed:', e);
+    }
+    return null;
+  },
+
+  /**
+   * Internal helper to find the correct MAL ID from a list of candidates based on date
+   */
+  resolveFromMalCandidates: async (malIds: number[], releaseDateStr: string, dayIndex?: number): Promise<DateSyncResult | null> => {
       // Helper to delay (Jikan Rate Limit: 3 req/sec)
       const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -96,7 +144,7 @@ export const ArmSyncService = {
             const epsRes = await axios.get(`${JIKAN_BASE}/anime/${malId}/episodes`);
             const episodes = epsRes.data.data;
             
-            const matchEp = episodes.find((ep: any) => {
+            const matchingEpisodes = episodes.filter((ep: any) => {
               if (!ep.aired) return false;
               try {
                 const epDate = new Date(ep.aired);
@@ -113,7 +161,20 @@ export const ArmSyncService = {
               }
             });
 
-            if (matchEp) {
+            if (matchingEpisodes.length > 0) {
+              // Sort matching episodes by their mal_id to ensure consistent ordering
+              matchingEpisodes.sort((a: any, b: any) => a.mal_id - b.mal_id);
+
+              let matchEp = matchingEpisodes[0];
+
+              // If multiple episodes match the same day, use dayIndex to pick the correct one
+              if (matchingEpisodes.length > 1 && dayIndex !== undefined) {
+                // If the dayIndex is within bounds, pick it. Otherwise, pick the last one.
+                const idx = Math.min(dayIndex, matchingEpisodes.length - 1);
+                matchEp = matchingEpisodes[idx];
+                logger.log(`[ArmSync] Disambiguated same-day release using dayIndex ${dayIndex} -> picked Ep #${matchEp.mal_id}`);
+              }
+
               logger.log(`[ArmSync] Episode resolved: #${matchEp.mal_id} (${matchEp.title})`);
               return {
                 malId,
@@ -126,10 +187,6 @@ export const ArmSyncService = {
           logger.warn(`[ArmSync] Failed to check candidate ${malId}:`, e);
         }
       }
-
-    } catch (e) {
-      logger.error('[ArmSync] Resolution failed:', e);
-    }
-    return null;
+      return null;
   }
 };

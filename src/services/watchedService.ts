@@ -35,7 +35,9 @@ class WatchedService {
      */
     public async markMovieAsWatched(
         imdbId: string,
-        watchedAt: Date = new Date()
+        watchedAt: Date = new Date(),
+        malId?: number,
+        tmdbId?: number
     ): Promise<{ success: boolean; syncedToTrakt: boolean }> {
         try {
             logger.log(`[WatchedService] Marking movie as watched: ${imdbId}`);
@@ -58,7 +60,11 @@ class WatchedService {
                     1, 
                     'movie', 
                     undefined, 
-                    imdbId
+                    imdbId,
+                    undefined,
+                    malId,
+                    undefined,
+                    tmdbId
                 ).catch(err => logger.error('[WatchedService] MAL movie sync failed:', err));
             }
 
@@ -94,7 +100,10 @@ class WatchedService {
         episode: number,
         watchedAt: Date = new Date(),
         releaseDate?: string, // Optional release date for precise matching
-        showTitle?: string
+        showTitle?: string,
+        malId?: number,
+        dayIndex?: number,
+        tmdbId?: number
     ): Promise<{ success: boolean; syncedToTrakt: boolean }> {
         try {
             logger.log(`[WatchedService] Marking episode as watched: ${showImdbId} S${season}E${episode}`);
@@ -115,12 +124,31 @@ class WatchedService {
 
             // Sync to MAL
             const malToken = MalAuth.getToken();
-            if (malToken && showImdbId) {
-                // Strategy 1: "Perfect Match" using ARM + Release Date
+            if (malToken && (showImdbId || malId || tmdbId)) {
+                // Strategy 0: Direct Match (if malId is provided)
                 let synced = false;
-                if (releaseDate) {
+                if (malId) {
+                    await MalSync.scrobbleDirect(malId, episode);
+                    synced = true;
+                }
+
+                // Strategy 1: TMDB-based Resolution (High Accuracy for Specials)
+                if (!synced && releaseDate && tmdbId) {
                     try {
-                        const armResult = await ArmSyncService.resolveByDate(showImdbId, releaseDate);
+                        const tmdbResult = await ArmSyncService.resolveByTmdb(tmdbId, releaseDate, dayIndex);
+                        if (tmdbResult) {
+                            await MalSync.scrobbleDirect(tmdbResult.malId, tmdbResult.episode);
+                            synced = true;
+                        }
+                    } catch (e) {
+                        logger.warn('[WatchedService] TMDB Sync failed, falling back to IMDb:', e);
+                    }
+                }
+
+                // Strategy 2: IMDb-based Resolution (Fallback)
+                if (!synced && releaseDate && showImdbId) {
+                    try {
+                        const armResult = await ArmSyncService.resolveByDate(showImdbId, releaseDate, dayIndex);
                         if (armResult) {
                             await MalSync.scrobbleDirect(armResult.malId, armResult.episode);
                             synced = true;
@@ -130,7 +158,7 @@ class WatchedService {
                     }
                 }
 
-                // Strategy 2: Offline Mapping Fallback
+                // Strategy 3: Offline Mapping / Search Fallback
                 if (!synced) {
                     MalSync.scrobbleEpisode(
                         showTitle || showImdbId || 'Anime',
@@ -139,7 +167,10 @@ class WatchedService {
                         'series',
                         season,
                         showImdbId,
-                        releaseDate // Pass releaseDate for better matching
+                        releaseDate, 
+                        malId,
+                        dayIndex,
+                        tmdbId
                     ).catch(err => logger.error('[WatchedService] MAL sync failed:', err));
                 }
             }
